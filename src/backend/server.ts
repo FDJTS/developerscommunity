@@ -16,6 +16,7 @@ import codeSnippetRoutes from './routes/codeSnippet.routes';
 import { configurePassport } from './config/passport';
 import { setupSocketHandlers } from './services/socket.service';
 import { errorHandler } from './middleware/error.middleware';
+import { generateSitemap } from './utils/sitemap';
 
 dotenv.config();
 
@@ -54,6 +55,32 @@ app.use('/api/snippets', codeSnippetRoutes);
 // Health check
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Sitemap
+app.get('/sitemap.xml', async (_req: Request, res: Response) => {
+  try {
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
+    const sitemap = await generateSitemap(baseUrl);
+    res.header('Content-Type', 'application/xml');
+    res.send(sitemap);
+  } catch (error) {
+    console.error('Sitemap generation error:', error);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
+// Robots.txt
+app.get('/robots.txt', (_req: Request, res: Response) => {
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /messages/
+
+Sitemap: ${process.env.FRONTEND_URL || 'http://localhost:8080'}/sitemap.xml
+`);
 });
 
 // WebSocket setup
