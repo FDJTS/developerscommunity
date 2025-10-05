@@ -1,0 +1,269 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  username          String    @unique
+  password          String?   // Nullable for OAuth users
+  firstName         String?
+  lastName          String?
+  avatar            String?
+  bio               String?   @db.Text
+  skills            String[]
+  githubUrl         String?
+  linkedinUrl       String?
+  twitterUrl        String?
+  websiteUrl        String?
+  location          String?
+  company           String?
+  reputation        Int       @default(0)
+  badges            String[]
+  emailVerified     Boolean   @default(false)
+  verificationToken String?
+  isOnline          Boolean   @default(false)
+  lastSeen          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // OAuth fields
+  googleId          String?   @unique
+  githubId          String?   @unique
+  
+  // Relations
+  posts             Post[]
+  projects          Project[]
+  comments          Comment[]
+  likes             Like[]
+  projectMembers    ProjectMember[]
+  sentMessages      Message[] @relation("SentMessages")
+  receivedMessages  Message[] @relation("ReceivedMessages")
+  notifications     Notification[]
+  followers         Follow[]  @relation("Following")
+  following         Follow[]  @relation("Followers")
+  friends           Friendship[] @relation("UserFriends")
+  friendOf          Friendship[] @relation("FriendOfUser")
+  codeSnippets      CodeSnippet[]
+  forumTopics       ForumTopic[]
+  forumReplies      ForumReply[]
+  
+  @@index([email])
+  @@index([username])
+}
+
+model Post {
+  id          String    @id @default(uuid())
+  title       String
+  slug        String    @unique
+  content     String    @db.Text
+  excerpt     String?
+  coverImage  String?
+  tags        String[]
+  published   Boolean   @default(false)
+  views       Int       @default(0)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  comments    Comment[]
+  likes       Like[]
+  
+  @@index([authorId])
+  @@index([slug])
+  @@index([createdAt])
+}
+
+model Project {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  description   String    @db.Text
+  readme        String?   @db.Text
+  coverImage    String?
+  githubRepo    String?
+  liveUrl       String?
+  tags          String[]
+  isPrivate     Boolean   @default(false)
+  isOpenSource  Boolean   @default(true)
+  stars         Int       @default(0)
+  ownerId       String
+  owner         User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  members       ProjectMember[]
+  codeSnippets  CodeSnippet[]
+  
+  @@index([ownerId])
+  @@index([slug])
+}
+
+model ProjectMember {
+  id          String    @id @default(uuid())
+  userId      String
+  projectId   String
+  role        String    @default("member")
+  joinedAt    DateTime  @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+model CodeSnippet {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  code        String    @db.Text
+  language    String
+  tags        String[]
+  isPublic    Boolean   @default(true)
+  forkCount   Int       @default(0)
+  forkedFrom  String?
+  authorId    String
+  projectId   String?
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([authorId])
+  @@index([projectId])
+}
+
+model Comment {
+  id          String    @id @default(uuid())
+  content     String    @db.Text
+  postId      String
+  authorId    String
+  parentId    String?
+  post        Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[] @relation("CommentReplies")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([postId])
+  @@index([authorId])
+}
+
+model Like {
+  id        String    @id @default(uuid())
+  userId    String
+  postId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Follow {
+  id          String    @id @default(uuid())
+  followerId  String
+  followingId String
+  follower    User      @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User      @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Friendship {
+  id        String    @id @default(uuid())
+  userId    String
+  friendId  String
+  status    String    @default("pending")
+  user      User      @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User      @relation("FriendOfUser", fields: [friendId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+}
+
+model Message {
+  id          String    @id @default(uuid())
+  content     String    @db.Text
+  senderId    String
+  receiverId  String
+  conversationId String
+  isRead      Boolean   @default(false)
+  sender      User      @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User      @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String    @id @default(uuid())
+  type      String
+  content   String
+  link      String?
+  isRead    Boolean   @default(false)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ForumTopic {
+  id          String    @id @default(uuid())
+  title       String
+  slug        String    @unique
+  content     String    @db.Text
+  category    String
+  tags        String[]
+  isPinned    Boolean   @default(false)
+  isLocked    Boolean   @default(false)
+  views       Int       @default(0)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  replies     ForumReply[]
+  
+  @@index([authorId])
+  @@index([category])
+  @@index([slug])
+}
+
+model ForumReply {
+  id        String    @id @default(uuid())
+  content   String    @db.Text
+  topicId   String
+  authorId  String
+  topic     ForumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  @@index([topicId])
+  @@index([authorId])
+}
